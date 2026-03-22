@@ -5,4 +5,5 @@ dist/
 build/
 *.log
 config.json
+*.egg-info/
 .claude/memory/
