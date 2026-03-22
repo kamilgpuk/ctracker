@@ -8,7 +8,7 @@ import rumps
 import json
 import os
 import threading
-from api import get_usage, format_resets_in, load_config
+from api import get_usage, format_resets_in
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
 
@@ -41,9 +41,7 @@ class CTrackerApp(rumps.App):
         ]
 
         self._last_error = None
-        config = load_config()
-        interval = config.get("refresh_interval_seconds", 120)
-        self._timer = rumps.Timer(self._tick, interval)
+        self._timer = rumps.Timer(self._tick, 120)
         self._timer.start()
         # First fetch immediately in background
         threading.Thread(target=self._fetch_and_update, daemon=True).start()
