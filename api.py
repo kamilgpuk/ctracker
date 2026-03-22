@@ -6,8 +6,12 @@ No config file needed — org_id is read from the lastActiveOrg cookie.
 """
 
 from datetime import datetime, timezone
+import time
 import browser_cookie3
 from curl_cffi import requests
+
+MAX_RETRIES = 3
+BACKOFF_BASE = 2  # seconds
 
 
 def get_usage():
@@ -24,9 +28,17 @@ def get_usage():
         "Referer": "https://claude.ai/settings/usage",
     }
 
-    resp = requests.get(url, cookies=cookies, headers=headers, impersonate="chrome120", timeout=10)
-    resp.raise_for_status()
-    return resp.json()
+    last_error = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            resp = requests.get(url, cookies=cookies, headers=headers, impersonate="chrome120", timeout=10)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            last_error = e
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(BACKOFF_BASE ** (attempt + 1))
+    raise last_error
 
 
 def format_resets_in(resets_at_str):

@@ -5,3 +5,4 @@ dist/
 build/
 *.log
 config.json
+.claude/memory/

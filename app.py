@@ -5,12 +5,14 @@ Shows session (5h window) and weekly token utilization %.
 """
 
 import rumps
-import json
 import os
+import logging
 import threading
 from api import get_usage, format_resets_in
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+LOG_PATH = os.path.join(os.path.dirname(__file__), "error.log")
+logging.basicConfig(filename=LOG_PATH, level=logging.ERROR,
+                    format="%(asctime)s %(levelname)s %(message)s")
 
 
 def pct(value):
@@ -72,9 +74,10 @@ class CTrackerApp(rumps.App):
             self._last_error = None
 
         except Exception as e:
+            logging.error("Fetch failed: %s", e)
             self.title = "CC ⚠"
             self.session_item.title = f"Błąd: {e}"
-            self.week_item.title = "Sprawdź config.json → session_key"
+            self.week_item.title = "Sprawdź połączenie z claude.ai"
             self._last_error = str(e)
 
     def refresh(self, _sender):
