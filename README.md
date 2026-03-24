@@ -6,6 +6,8 @@ macOS menu bar app that shows your Claude Code API usage in real time.
 ![python](https://img.shields.io/badge/python-3.9+-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
+<img width="464" height="106" alt="CleanShot 2026-03-24 at 15 33 30@2x" src="https://github.com/user-attachments/assets/dc18ffff-4473-4d1a-a93b-c2468aad75e1" />
+
 ## What it does
 
 - **Session (5h)** — current 5-hour window utilization %
