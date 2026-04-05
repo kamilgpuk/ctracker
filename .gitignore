@@ -6,4 +6,5 @@ build/
 *.log
 config.json
 *.egg-info/
+.ctracker_prefs
 .claude/memory/

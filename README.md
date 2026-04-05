@@ -12,6 +12,7 @@ macOS menu bar app that shows your Claude Code API usage in real time.
 
 - **Session (5h)** — current 5-hour window utilization %
 - **Weekly (7d)** — rolling 7-day utilization %
+- **Extra usage cost** — optional display of overage spend in your currency (EUR, USD, etc.)
 - Countdown to next reset
 - Auto-refreshes every 2 minutes
 
@@ -54,7 +55,7 @@ ctracker is a lightweight, read-only monitor. Here's the full data flow:
 
 1. **Cookie reading** — On each refresh, `browser_cookie3` reads three cookies from your local Chrome storage: `sessionKey` (your login session), `cf_clearance` (Cloudflare token), and `lastActiveOrg` (your organization ID). This requires one-time Keychain approval from macOS.
 
-2. **API call** — The app makes a single `GET` request to `https://claude.ai/api/organizations/{org_id}/usage`. This is the same endpoint your browser hits when you open Settings → Usage on claude.ai. It uses `curl_cffi` to match Chrome's TLS fingerprint, which is required to pass Cloudflare's bot detection.
+2. **API calls** — The app makes two `GET` requests: `/usage` (session & weekly utilization) and `/overage_spend_limit` (extra usage cost). These are the same endpoints your browser hits on claude.ai Settings. It uses `curl_cffi` to match Chrome's TLS fingerprint, which is required to pass Cloudflare's bot detection. If the billing endpoint fails, usage data still works normally.
 
 3. **Display** — The JSON response contains `five_hour.utilization` and `seven_day.utilization` (floats 0–1) plus `resets_at` timestamps. The app formats these as percentages and countdowns, then renders them in the macOS menu bar via `rumps`.
 
@@ -69,15 +70,15 @@ This app was designed to be safe to run and easy to audit. The entire codebase i
 ### What the app does NOT do
 
 - **No credentials stored** — Zero API keys, tokens, or passwords in the code or on disk. Authentication is delegated entirely to your existing Chrome session.
-- **No data written to disk** — No databases, no cache files, no state files. The only file output is `error.log` (error messages only, no sensitive data).
-- **No data sent anywhere** — The app talks to exactly one endpoint (`claude.ai`), using your own cookies. Nothing is sent to third-party servers, analytics, or telemetry services.
+- **No sensitive data written to disk** — The only files written are `error.log` (error messages only) and `.ctracker_prefs` (a single `0` or `1` for the extra usage toggle). No databases, no cache files.
+- **No data sent anywhere** — The app talks only to `claude.ai` endpoints, using your own cookies. Nothing is sent to third-party servers, analytics, or telemetry services.
 - **No code execution** — No `eval()`, `exec()`, `subprocess`, or shell commands anywhere in the codebase.
 - **No write operations** — Only `GET` requests. The app cannot modify your account, settings, or usage.
 
 ### What the app DOES do
 
 - **Reads 3 Chrome cookies** — `sessionKey`, `cf_clearance`, `lastActiveOrg`. These stay in memory during the request and are never logged or persisted.
-- **Makes HTTPS GET requests** — Read-only, to a single Anthropic endpoint, over TLS.
+- **Makes HTTPS GET requests** — Read-only, to two Anthropic endpoints (`/usage` and `/overage_spend_limit`), over TLS.
 - **Displays text in your menu bar** — That's the entire output.
 
 ### Dependencies
@@ -95,8 +96,8 @@ Only 3 packages, all pinned to exact versions:
 The app is intentionally tiny so you can read every line before running it:
 
 ```bash
-cat api.py   # ~60 lines — HTTP client
-cat app.py   # ~50 lines — menu bar UI
+cat api.py   # ~85 lines — HTTP client
+cat app.py   # ~165 lines — menu bar UI
 ```
 
 ### Keychain prompt
