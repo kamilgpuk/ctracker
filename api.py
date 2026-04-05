@@ -14,20 +14,19 @@ MAX_RETRIES = 3
 BACKOFF_BASE = 2  # seconds
 
 
-def get_usage():
+def _get_cookies_and_org():
     cookies = {c.name: c.value for c in browser_cookie3.chrome(domain_name=".claude.ai")}
-
     org_id = cookies.get("lastActiveOrg")
     if not org_id:
         raise Exception("Nie znaleziono lastActiveOrg w cookies Chrome. Zaloguj się na claude.ai w Chrome.")
+    return cookies, org_id
 
-    url = f"https://claude.ai/api/organizations/{org_id}/usage"
 
+def _api_get(url, cookies, referer):
     headers = {
         "Accept": "application/json",
-        "Referer": "https://claude.ai/settings/usage",
+        "Referer": referer,
     }
-
     last_error = None
     for attempt in range(MAX_RETRIES):
         try:
@@ -39,6 +38,33 @@ def get_usage():
             if attempt < MAX_RETRIES - 1:
                 time.sleep(BACKOFF_BASE ** (attempt + 1))
     raise last_error
+
+
+def get_usage():
+    cookies, org_id = _get_cookies_and_org()
+    url = f"https://claude.ai/api/organizations/{org_id}/usage"
+    return _api_get(url, cookies, "https://claude.ai/settings/usage")
+
+
+def get_extra_usage():
+    """Fetch extra usage (overage) spend data. Returns dict or None on failure."""
+    try:
+        cookies, org_id = _get_cookies_and_org()
+        url = f"https://claude.ai/api/organizations/{org_id}/overage_spend_limit"
+        data = _api_get(url, cookies, "https://claude.ai/settings/billing")
+
+        if not data.get("is_enabled"):
+            return {"enabled": False, "used": 0, "limit": 0, "currency": "USD"}
+
+        # API returns values in cents — convert to base currency units
+        return {
+            "enabled": True,
+            "used": float(data.get("used_credits", 0)) / 100.0,
+            "limit": float(data.get("monthly_credit_limit", 0)) / 100.0,
+            "currency": (data.get("currency") or "USD").upper(),
+        }
+    except Exception:
+        return None
 
 
 def format_resets_in(resets_at_str):
