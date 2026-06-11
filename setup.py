@@ -3,6 +3,11 @@ from setuptools import setup
 APP = ['app.py']
 OPTIONS = {
     'argv_emulation': False,
+    # Python 3.14's bundled .so files are code-signed and read-only, so the
+    # default `strip` pass fails ("Operation not permitted" / would invalidate
+    # the code signature). Skip stripping — the bundle is slightly larger but
+    # valid and signed. Required to build on Python 3.13+.
+    'strip': False,
     'plist': {
         'CFBundleName': 'ctracker',
         'CFBundleVersion': '1.0.0',

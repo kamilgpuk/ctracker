@@ -13,6 +13,7 @@ macOS menu bar app that shows your Claude Code API usage in real time.
 - **Session (5h)** — current 5-hour window utilization %
 - **Weekly (7d)** — rolling 7-day utilization %
 - **Extra usage cost** — optional display of overage spend in your currency (EUR, USD, etc.)
+- **Multi-profile support** — automatically finds the Chrome profile that's logged into claude.ai, so it works on shared Macs and with multiple Chrome profiles
 - Countdown to next reset
 - Auto-refreshes every 2 minutes
 
@@ -25,6 +26,16 @@ git clone https://github.com/kamilgpuk/ctracker.git
 cd ctracker
 pip3 install -r requirements.txt
 ```
+
+> **`pip3` fails with `externally-managed-environment`?** That's [PEP 668](https://peps.python.org/pep-0668/) on newer Python (e.g. Homebrew). Use a virtual environment instead:
+>
+> ```bash
+> python3 -m venv .venv
+> source .venv/bin/activate
+> pip install -r requirements.txt
+> ```
+>
+> Keep it activated (or prefix the commands below with `.venv/bin/`) when you run or build the app.
 
 ### First run
 
@@ -47,13 +58,13 @@ The app bundle appears at `dist/ctracker.app`. Drag it to Applications or add to
 
 - macOS
 - Python 3.9+
-- Chrome with an active [claude.ai](https://claude.ai) session
+- Chrome with an active [claude.ai](https://claude.ai) session (in any profile)
 
 ## How it works
 
 ctracker is a lightweight, read-only monitor. Here's the full data flow:
 
-1. **Cookie reading** — On each refresh, `browser_cookie3` reads three cookies from your local Chrome storage: `sessionKey` (your login session), `cf_clearance` (Cloudflare token), and `lastActiveOrg` (your organization ID). This requires one-time Keychain approval from macOS.
+1. **Cookie reading** — On each refresh, the app scans all your Chrome profiles (Default, Profile 1, …) and picks the most recently used one with an active claude.ai session. From it, `browser_cookie3` reads three cookies: `sessionKey` (your login session), `cf_clearance` (Cloudflare token), and `lastActiveOrg` (your organization ID). This requires one-time Keychain approval from macOS.
 
 2. **API calls** — The app makes two `GET` requests: `/usage` (session & weekly utilization) and `/overage_spend_limit` (extra usage cost). These are the same endpoints your browser hits on claude.ai Settings. It uses `curl_cffi` to match Chrome's TLS fingerprint, which is required to pass Cloudflare's bot detection. If the billing endpoint fails, usage data still works normally.
 
@@ -63,14 +74,29 @@ ctracker is a lightweight, read-only monitor. Here's the full data flow:
 
 That's it. No background services, no databases, no accounts to create.
 
+## Multiple Chrome profiles
+
+If you use several Chrome profiles (e.g. work and personal), ctracker automatically follows the right one: on every refresh it picks the most recently used profile that has an active claude.ai session (`sessionKey` + `lastActiveOrg` cookies). Log into claude.ai on a different profile and the app switches to it on the next refresh — no configuration needed.
+
+To pin a specific profile instead, set `CTRACKER_CHROME_PROFILE` to the profile's directory name (`Default`, `Profile 1`, `Profile 2`, …):
+
+```bash
+CTRACKER_CHROME_PROFILE="Profile 1" python3 app.py
+```
+
+The app also keeps its own files out of the app bundle, so a `.app` installed in `/Applications` works for every user on the Mac:
+
+- error log → `~/Library/Logs/ctracker/error.log`
+- preferences → `~/Library/Application Support/ctracker/.ctracker_prefs`
+
 ## Security
 
-This app was designed to be safe to run and easy to audit. The entire codebase is ~100 lines across two files.
+This app was designed to be safe to run and easy to audit. The entire codebase is ~300 lines across two files.
 
 ### What the app does NOT do
 
 - **No credentials stored** — Zero API keys, tokens, or passwords in the code or on disk. Authentication is delegated entirely to your existing Chrome session.
-- **No sensitive data written to disk** — The only files written are `error.log` (error messages only) and `.ctracker_prefs` (a single `0` or `1` for the extra usage toggle). No databases, no cache files.
+- **No sensitive data written to disk** — The only files written are an error log (`~/Library/Logs/ctracker/error.log`, error messages only) and a one-byte preference file (`~/Library/Application Support/ctracker/.ctracker_prefs`, a single `0` or `1` for the extra usage toggle). No databases, no cache files.
 - **No data sent anywhere** — The app talks only to `claude.ai` endpoints, using your own cookies. Nothing is sent to third-party servers, analytics, or telemetry services.
 - **No code execution** — No `eval()`, `exec()`, `subprocess`, or shell commands anywhere in the codebase.
 - **No write operations** — Only `GET` requests. The app cannot modify your account, settings, or usage.
@@ -96,8 +122,8 @@ Only 3 packages, all pinned to exact versions:
 The app is intentionally tiny so you can read every line before running it:
 
 ```bash
-cat api.py   # ~85 lines — HTTP client
-cat app.py   # ~165 lines — menu bar UI
+cat api.py   # ~140 lines — HTTP client + Chrome profile discovery
+cat app.py   # ~175 lines — menu bar UI
 ```
 
 ### Keychain prompt

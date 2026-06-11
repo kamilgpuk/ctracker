@@ -8,3 +8,12 @@ config.json
 *.egg-info/
 .ctracker_prefs
 .claude/memory/
+.claude/settings.local.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store

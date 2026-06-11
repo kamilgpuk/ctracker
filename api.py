@@ -6,6 +6,8 @@ No config file needed — org_id is read from the lastActiveOrg cookie.
 """
 
 from datetime import datetime, timezone
+import os
+import glob
 import time
 import browser_cookie3
 from curl_cffi import requests
@@ -13,12 +15,64 @@ from curl_cffi import requests
 MAX_RETRIES = 3
 BACKOFF_BASE = 2  # seconds
 
+CHROME_DIR = os.path.expanduser("~/Library/Application Support/Google/Chrome")
+
+
+def _profile_cookie_files():
+    """All Chrome profile cookie stores, most recently used first.
+
+    Chrome keeps separate cookies per profile (Default, Profile 1, Profile 2…).
+    We don't know which profile is logged into claude.ai, so we list them all
+    and let the caller pick the one with an active session.
+    """
+    candidates = []
+    for profile_dir in glob.glob(os.path.join(CHROME_DIR, "*")):
+        for name in ("Network/Cookies", "Cookies"):  # newer Chrome uses Network/
+            path = os.path.join(profile_dir, name)
+            if os.path.exists(path):
+                candidates.append(path)
+                break
+    candidates.sort(key=os.path.getmtime, reverse=True)
+    return candidates
+
+
+def _read_claude_cookies():
+    """Return cookies from whichever Chrome profile is logged into claude.ai.
+
+    Picks the most recently used profile that has both a sessionKey and a
+    lastActiveOrg — i.e. a real logged-in session. Set CTRACKER_CHROME_PROFILE
+    (e.g. "Profile 1") to force a specific profile.
+    """
+    override = os.environ.get("CTRACKER_CHROME_PROFILE")
+    if override:
+        for name in ("Network/Cookies", "Cookies"):
+            path = os.path.join(CHROME_DIR, override, name)
+            if os.path.exists(path):
+                cj = browser_cookie3.chrome(domain_name=".claude.ai", cookie_file=path)
+                return {c.name: c.value for c in cj}
+
+    last_error = None
+    for cookie_file in _profile_cookie_files():
+        try:
+            cj = browser_cookie3.chrome(domain_name=".claude.ai", cookie_file=cookie_file)
+            cookies = {c.name: c.value for c in cj}
+        except Exception as e:
+            last_error = e
+            continue
+        if cookies.get("sessionKey") and cookies.get("lastActiveOrg"):
+            return cookies
+
+    # Nothing logged in: fall back to default profile so the usual error surfaces.
+    if last_error:
+        raise last_error
+    return {c.name: c.value for c in browser_cookie3.chrome(domain_name=".claude.ai")}
+
 
 def _get_cookies_and_org():
-    cookies = {c.name: c.value for c in browser_cookie3.chrome(domain_name=".claude.ai")}
+    cookies = _read_claude_cookies()
     org_id = cookies.get("lastActiveOrg")
     if not org_id:
-        raise Exception("Nie znaleziono lastActiveOrg w cookies Chrome. Zaloguj się na claude.ai w Chrome.")
+        raise Exception("Nie znaleziono aktywnej sesji claude.ai w żadnym profilu Chrome. Zaloguj się na claude.ai w Chrome.")
     return cookies, org_id
 
 
